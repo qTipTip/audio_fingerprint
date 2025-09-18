@@ -1,0 +1,11 @@
+[package]
+name = "audio_fingerprint"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = "4.5.47"
+hound = "3.5.1"
+log = "0.4.28"
+rustfft = "6.4.0"
+simple_logger = "5.0.0"

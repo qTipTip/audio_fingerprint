@@ -38,6 +38,45 @@ impl FingerprintDB {
                 .push((song_id, time_offset))
         }
     }
+
+    pub fn recognize_song(
+        &self,
+        peaks: &[Peak],
+        config: &SpectrogramConfig,
+    ) -> Option<MatchResult> {
+        log::debug!("Recognizing song");
+
+        let query_fingerprints = generate_fingerprints(peaks, config);
+        // TODO: Should this be the length of the flattened vector maybe?
+        let total_query_fingerprints = query_fingerprints.len();
+        // Map (song_id, alignment_offset) to counter
+        let mut vote_counter: HashMap<(u32, u32), u32> = HashMap::new(); // (song_id, alignment_offset)
+
+        for (query_fingerprint, time_offset) in query_fingerprints {
+            let fingerprint_match = match self.database.get(&query_fingerprint) {
+                Some(fingerprint) => fingerprint,
+                None => continue,
+            };
+
+            for (song_id, offset) in fingerprint_match {
+                let alignment_offset = offset - time_offset; // Database time - query time
+                *vote_counter
+                    .entry((*song_id, alignment_offset))
+                    .or_insert(0) += 1
+            }
+        }
+
+        // Fetch the key corresponding to the highest number of votes
+        let result = vote_counter.iter().max_by_key(|(key, value)| **value);
+
+        match result {
+            Some(((song_id, offset), votes)) => {
+                let confidence = *votes as f32 / total_query_fingerprints as f32;
+                return Some(MatchResult::new(*song_id, confidence, *offset, *votes));
+            }
+            None => None,
+        }
+    }
 }
 
 pub(crate) fn generate_fingerprints(
@@ -112,4 +151,15 @@ pub struct MatchResult {
     pub confidence: f32,  // 0.0 to 1.0
     pub time_offset: u32, // Where in the original song (ms)
     pub votes: u32,       // Number of matching fingerprints
+}
+
+impl MatchResult {
+    pub fn new(song_id: u32, confidence: f32, time_offset: u32, votes: u32) -> MatchResult {
+        Self {
+            song_id,
+            confidence,
+            time_offset,
+            votes,
+        }
+    }
 }

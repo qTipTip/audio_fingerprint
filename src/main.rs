@@ -4,11 +4,7 @@ mod fft;
 mod fingerprint;
 mod peaks;
 
-use crate::{
-    fft::SpectrogramConfig,
-    fingerprint::{FingerprintDB, generate_fingerprints},
-    peaks::extract_peaks,
-};
+use crate::{fft::SpectrogramConfig, fingerprint::FingerprintDB, peaks::extract_peaks};
 
 fn main() {
     // Configure a simple logger
@@ -56,5 +52,25 @@ fn main() {
         for (song_id, time_offset) in locations.iter().take(3) {
             log::debug!("\t -> Song {} at {}ms", song_id, time_offset);
         }
+    }
+
+    // Attempt to recognize a song snippet:
+    // Snippet created using:
+    // ffmpeg -ss <seek to seconds> -t <num seconds to cut> input.wav output.wav
+    // ffmpeg -ss 132 -t 10 "03 Karesuando Camping.wav" Karesuando_camping_query.wav
+    let samples = audio::load_wav(r"test_audio/karesuando_camping_query.wav")
+        .expect("Unable to read wav file");
+    let config = SpectrogramConfig::default();
+    let spectrogram = fft::compute_spectrogram(&samples, config);
+    let peaks = extract_peaks(&spectrogram);
+
+    match db.recognize_song(&peaks, &config) {
+        Some(result) => {
+            println!(
+                "Found a match! song_id: {} confidence: {}, votes: {}, offset: {}",
+                result.song_id, result.confidence, result.votes, result.time_offset
+            );
+        }
+        None => todo!(),
     }
 }

@@ -14,14 +14,25 @@ fn main() {
     // Configure a simple logger
     simple_logger::SimpleLogger::new().init().unwrap();
 
-    let samples =
-        audio::load_wav(r"test_audio/03 Karesuando Camping.wav").expect("Unable to read wav file");
-    let config = SpectrogramConfig::default();
-    let spectrogram = fft::compute_spectrogram(&samples, config);
-    let peaks = extract_peaks(&spectrogram);
-
     let mut db = FingerprintDB::new();
-    db.add_song(1, &peaks, &config);
+    let song_paths = [
+        r"test_audio/03 Karesuando Camping.wav",
+        r"test_audio/04 Planet Bygningsetaten.wav",
+        r"test_audio/05 Cloudboy Blidbop.wav",
+        r"test_audio/07 Ja noir.wav",
+        r"test_audio/08 Slipp Ivar fri.wav",
+        r"test_audio/09 Litt mye.wav",
+        r"test_audio/10 Thank you Kleveland.wav",
+    ];
+
+    for (i, path) in song_paths.iter().enumerate() {
+        log::debug!("Adding {} to song database", path);
+        let samples = audio::load_wav(path).expect("Unable to read wav file");
+        let config = SpectrogramConfig::default();
+        let spectrogram = fft::compute_spectrogram(&samples, config);
+        let peaks = extract_peaks(&spectrogram);
+        db.add_song(i as u32, &peaks, &config);
+    }
 
     let total_fingerprints: usize = db.database.values().map(|v| v.len()).sum();
     let unique_fingerprints: usize = db.database.len();

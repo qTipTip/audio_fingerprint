@@ -45,47 +45,47 @@ pub(crate) fn generate_fingerprints(
     config: &SpectrogramConfig,
 ) -> Vec<(Fingerprint, u32)> {
     log::debug!("Generating fingerprint");
-
     let mut fingerprints = Vec::new();
-
-    // We start by sorting the peaks by time, so it's easy to find peaks close in time.
     let mut peak_indices: Vec<usize> = (0..peaks.len()).collect();
     peak_indices.sort_by_key(|&i| peaks[i].time_bin);
 
-    // For each peak, we look for N peaks in the future and create a fingerprint  for each
     for (i, &anchor_i) in peak_indices.iter().enumerate() {
-        // We get a reference to the anchor peak, and initialize a counter for the number of target
-        // peaks.
         let anchor = &peaks[anchor_i];
-        let mut target_count = 0;
+        let mut valid_targets = Vec::new();
 
+        // Collect all valid targets
         for &target_i in &peak_indices[i + 1..] {
-            // For each target, we compare the difference in time to the anchor, and discard the
-            // target as a candidate if the time diff is too large.
             let target = &peaks[target_i];
             let time_diff_ms =
                 ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32;
 
             if time_diff_ms > MAX_TIME_DELTA_MS {
-                log::trace!(
-                    "Time diff {}ms > {}ms. Skipping",
-                    time_diff_ms,
-                    MAX_TIME_DELTA_MS
-                );
                 break;
             }
 
-            let fingerprint = create_fingerprint(anchor, target, config);
-            let time_offset_ms = (anchor.time_seconds(config) * 1000.0) as u32;
-            fingerprints.push((fingerprint, time_offset_ms));
+            if time_diff_ms >= 50 {
+                valid_targets.push((target_i, time_diff_ms));
+            }
+        }
 
-            target_count += 1;
-            if target_count >= NUM_TARGET_PEAKS {
-                break;
+        // Shuffle the valid targets, and take up to NUM_TARGET_PEAKS
+        if !valid_targets.is_empty() {
+            for j in 0..valid_targets.len() {
+                let k = fastrand::usize(j..valid_targets.len());
+                valid_targets.swap(j, k);
+            }
+
+            let num_to_take = NUM_TARGET_PEAKS.min(valid_targets.len());
+            for &(target_i, _time_diff) in valid_targets.iter().take(num_to_take) {
+                let target = &peaks[target_i];
+                let fingerprint = create_fingerprint(anchor, target, config);
+                let time_offset_ms = (anchor.time_seconds(config) * 1000.0) as u32;
+                fingerprints.push((fingerprint, time_offset_ms));
             }
         }
     }
 
+    log::debug!("Done generating fingerprints");
     fingerprints
 }
 

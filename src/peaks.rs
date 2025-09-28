@@ -35,6 +35,7 @@ impl Peak {
 }
 
 pub fn extract_peaks(spectrogram: &Spectrogram) -> Vec<Peak> {
+    log::debug!("Extracting peaks");
     let mut all_peaks = Vec::<Peak>::new();
 
     // We iterate over each time-slice in the time-frequency grid, and compute peaks in each
@@ -44,26 +45,13 @@ pub fn extract_peaks(spectrogram: &Spectrogram) -> Vec<Peak> {
         all_peaks.extend(peaks_in_this_window);
     }
 
+    log::debug!("Extracted {} peaks", all_peaks.len());
     all_peaks
 }
 
 fn find_frequency_peaks(magnitudes: &[f32], time_bin: usize) -> Vec<Peak> {
-    // We use a very naive frequency peak algorithm. It will simply find ALL local maxima in the
-    // frequency spectrum.
-    //
-    // TODO: Implement adaptive thresholding
     let mut peaks = Vec::<Peak>::new();
-
     let num_magnitudes = magnitudes.len();
-
-    // Edge conditions: start
-    if magnitudes[0] > magnitudes[1] {
-        peaks.push(Peak {
-            time_bin,
-            freq_bin: 0,
-            magnitude: magnitudes[0],
-        });
-    }
 
     for i in 1..num_magnitudes - 1 {
         if (magnitudes[i] > magnitudes[i - 1]) && (magnitudes[i] > magnitudes[i + 1]) {
@@ -74,14 +62,10 @@ fn find_frequency_peaks(magnitudes: &[f32], time_bin: usize) -> Vec<Peak> {
             });
         }
     }
-    // Edge conditions: end
-    if magnitudes[num_magnitudes - 1] > magnitudes[num_magnitudes - 2] {
-        peaks.push(Peak {
-            time_bin,
-            freq_bin: num_magnitudes - 1,
-            magnitude: magnitudes[num_magnitudes - 1],
-        });
-    }
+
+    // Sort by strongest peaks first, and pick the 5 largest.
+    peaks.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap());
+    peaks.truncate(5);
 
     peaks
 }

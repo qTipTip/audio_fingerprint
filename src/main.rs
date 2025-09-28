@@ -4,28 +4,46 @@ mod fft;
 mod fingerprint;
 mod peaks;
 
-use crate::{fft::SpectrogramConfig, fingerprint::generate_fingerprints, peaks::extract_peaks};
+use crate::{
+    fft::SpectrogramConfig,
+    fingerprint::{FingerprintDB, generate_fingerprints},
+    peaks::extract_peaks,
+};
 
 fn main() {
     // Configure a simple logger
     simple_logger::SimpleLogger::new().init().unwrap();
 
-    let samples = audio::load_wav("test_audio/example.wav").expect("Unable to read wav file");
+    let samples =
+        audio::load_wav(r"test_audio/03 Karesuando Camping.wav").expect("Unable to read wav file");
     let config = SpectrogramConfig::default();
     let spectrogram = fft::compute_spectrogram(&samples, config);
     let peaks = extract_peaks(&spectrogram);
 
-    log::debug!("Found {} total peaks", peaks.len());
+    let mut db = FingerprintDB::new();
+    db.add_song(1, &peaks, &config);
 
-    for peak in peaks.iter().take(10) {
+    let total_fingerprints: usize = db.database.values().map(|v| v.len()).sum();
+    let unique_fingerprints: usize = db.database.len();
+
+    log::debug!("Generated {} total fingerprints", total_fingerprints);
+    log::debug!("Reduced to {} unique fingerprints", unique_fingerprints);
+    log::debug!(
+        "Average collisions per fingerprint: {:.2}",
+        total_fingerprints as f32 / unique_fingerprints as f32
+    );
+
+    for (fingerprint, locations) in db.database.iter().take(10) {
         log::debug!(
-            "Peak: {:.3}Hz at {:.2}s (magnitude: {:.10})",
-            peak.frequency_hz(&spectrogram.config),
-            peak.time_seconds(&spectrogram.config),
-            peak.magnitude
+            "Fingerprint: {}Hz->{}Hz, dt={}ms appears {}times",
+            fingerprint.freq1,
+            fingerprint.freq2,
+            fingerprint.time_delta,
+            locations.len(),
         );
-    }
 
-    let fingerprints = generate_fingerprints(&peaks, &config);
-    log::debug!("Found fingerprints, {:?}", fingerprints.iter().take(10));
+        for (song_id, time_offset) in locations.iter().take(3) {
+            log::debug!("\t -> Song {} at {}ms", song_id, time_offset);
+        }
+    }
 }

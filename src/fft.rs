@@ -13,7 +13,7 @@ impl SpectrogramConfig {
         Self {
             window_size: 1024,
             stride: 512,
-            sample_rate: 44100.0,
+            sample_rate: 48000.0,
         }
     }
 }

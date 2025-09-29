@@ -27,10 +27,10 @@ impl FingerprintDB {
         }
     }
 
-    pub fn add_song(&mut self, song_id: u32, peaks: &[Peak], config: &SpectrogramConfig) {
-        log::debug!("Adding song: {song_id}");
+    pub fn add_song(&mut self, peaks: &[Peak], config: &SpectrogramConfig) {
+        let song_id = self.database.len() as u32;
+        log::info!("Adding song: {song_id}");
         let fingerprints = generate_fingerprints(peaks, &config);
-
         for (fingerprint, time_offset) in fingerprints {
             self.database
                 .entry(fingerprint)
@@ -44,10 +44,9 @@ impl FingerprintDB {
         peaks: &[Peak],
         config: &SpectrogramConfig,
     ) -> Option<MatchResult> {
-        log::debug!("Recognizing song");
+        log::info!("Recognizing song");
 
         let query_fingerprints = generate_fingerprints(peaks, config);
-        // TODO: Should this be the length of the flattened vector maybe?
         let total_query_fingerprints = query_fingerprints.len();
         // Map (song_id, alignment_offset) to counter
         let mut vote_counter: HashMap<(u32, u32), u32> = HashMap::new(); // (song_id, alignment_offset)
@@ -83,7 +82,7 @@ pub(crate) fn generate_fingerprints(
     peaks: &[Peak],
     config: &SpectrogramConfig,
 ) -> Vec<(Fingerprint, u32)> {
-    log::debug!("Generating fingerprint");
+    log::info!("Generating fingerprint");
     let mut fingerprints = Vec::new();
     let mut peak_indices: Vec<usize> = (0..peaks.len()).collect();
     peak_indices.sort_by_key(|&i| peaks[i].time_bin);
@@ -124,7 +123,7 @@ pub(crate) fn generate_fingerprints(
         }
     }
 
-    log::debug!("Done generating fingerprints");
+    log::info!("Done generating fingerprints");
     fingerprints
 }
 

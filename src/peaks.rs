@@ -55,11 +55,7 @@ fn find_frequency_peaks(magnitudes: &[f32], time_bin: usize) -> Vec<Peak> {
 
     for i in 1..num_magnitudes - 1 {
         if (magnitudes[i] > magnitudes[i - 1]) && (magnitudes[i] > magnitudes[i + 1]) {
-            peaks.push(Peak {
-                time_bin,
-                freq_bin: i,
-                magnitude: magnitudes[i],
-            });
+            peaks.push(Peak::new(time_bin, i, magnitudes[i]));
         }
     }
 

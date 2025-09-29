@@ -21,7 +21,7 @@ pub fn analyze_song(song_path: &str) {
         title: String::from(song_path),
     };
 
-    db.add_song(song_metadata, &peaks, &config);
+    db.add_song(song_metadata, &peaks, &spectrogram.config);
 
     let total_fingerprints: usize = db.database.values().map(|v| v.len()).sum();
     let unique_fingerprints: usize = db.database.len();
@@ -46,5 +46,5 @@ pub fn recognize_song(song_query_path: &str) -> Option<SongMetaData> {
     let db =
         fingerprint::FingerprintDB::load("audio_fingerprint.db").expect("Unable to load database");
 
-    db.recognize_song(&peaks, &config)
+    db.recognize_song(&peaks, &spectrogram.config)
 }

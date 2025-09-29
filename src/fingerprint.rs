@@ -211,7 +211,8 @@ fn create_fingerprint(anchor: &Peak, target: &Peak, config: &SpectrogramConfig) 
     }
 }
 
-struct MatchResult {
+#[allow(dead_code)]
+pub struct MatchResult {
     pub song_id: u32,
     pub confidence: f32,  // 0.0 to 1.0
     pub time_offset: u32, // Where in the original song (ms)

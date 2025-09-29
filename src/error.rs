@@ -1,5 +1,6 @@
 use hound;
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AudioError {
     Hound(hound::Error),
     UnsupportedFormat(hound::SampleFormat, u16),

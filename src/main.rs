@@ -1,6 +1,6 @@
 mod cli;
 
-use std::{fs, io, path::Path};
+use std::{fs, io};
 
 use audio_fingerprint::{analyze_song, recognize_song};
 use clap::Parser;

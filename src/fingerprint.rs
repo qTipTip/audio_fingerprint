@@ -1,4 +1,10 @@
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use crate::{fft::SpectrogramConfig, peaks::Peak};
 
@@ -8,46 +14,61 @@ const MAX_TIME_DELTA_MS: u32 = 2000;
 const NUM_TARGET_PEAKS: usize = 5;
 
 // We define a fingerprint as a relationship between two peaks
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Fingerprint {
     pub freq1: u32,
     pub freq2: u32,
     pub time_delta: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SongMetaData {
+    pub song_id: u32,
+    pub title: String,
+}
 // The fingerprint database maps a fingerprint to where it was found (song_id, time_offset)
+#[derive(Serialize, Deserialize)]
 pub struct FingerprintDB {
     pub database: HashMap<Fingerprint, Vec<(u32, u32)>>,
+    pub songs: HashMap<u32, SongMetaData>,
+    pub total_fingerprints: usize,
 }
 
 impl FingerprintDB {
     pub fn new() -> Self {
         Self {
             database: HashMap::new(),
+            songs: HashMap::new(),
+            total_fingerprints: 0,
         }
     }
 
-    pub fn add_song(&mut self, song_id: u32, peaks: &[Peak], config: &SpectrogramConfig) {
-        log::debug!("Adding song: {song_id}");
+    pub fn add_song(&mut self, metadata: SongMetaData, peaks: &[Peak], config: &SpectrogramConfig) {
+        log::info!(
+            "Adding song: {} with title: {}",
+            metadata.song_id,
+            metadata.title
+        );
         let fingerprints = generate_fingerprints(peaks, &config);
-
         for (fingerprint, time_offset) in fingerprints {
             self.database
                 .entry(fingerprint)
                 .or_insert_with(Vec::new)
-                .push((song_id, time_offset))
+                .push((metadata.song_id, time_offset))
         }
+
+        self.songs.insert(metadata.song_id, metadata);
+        self.total_fingerprints += self.database.len();
     }
 
     pub fn recognize_song(
         &self,
         peaks: &[Peak],
         config: &SpectrogramConfig,
-    ) -> Option<MatchResult> {
-        log::debug!("Recognizing song");
+    ) -> Option<SongMetaData> {
+        log::info!("Recognizing song");
 
         let query_fingerprints = generate_fingerprints(peaks, config);
-        // TODO: Should this be the length of the flattened vector maybe?
         let total_query_fingerprints = query_fingerprints.len();
         // Map (song_id, alignment_offset) to counter
         let mut vote_counter: HashMap<(u32, u32), u32> = HashMap::new(); // (song_id, alignment_offset)
@@ -67,15 +88,59 @@ impl FingerprintDB {
         }
 
         // Fetch the key corresponding to the highest number of votes
-        let result = vote_counter.iter().max_by_key(|(key, value)| **value);
+        let result = vote_counter.iter().max_by_key(|(_key, value)| **value);
 
         match result {
             Some(((song_id, offset), votes)) => {
                 let confidence = *votes as f32 / total_query_fingerprints as f32;
-                return Some(MatchResult::new(*song_id, confidence, *offset, *votes));
+                let match_result = MatchResult::new(*song_id, confidence, *offset, *votes);
+                self.get_song_metadata_by_match_result(&match_result)
             }
             None => None,
         }
+    }
+
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!(
+            "Saving fingerprint database with {} songs and {} fingerprints",
+            self.songs.len(),
+            self.total_fingerprints
+        );
+
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+        let bincode_config = bincode::config::standard();
+        bincode::serde::encode_into_std_write(self, &mut writer, bincode_config)?;
+
+        Ok(())
+    }
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        log::info!("Loading fingerprint database");
+
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+
+        let bincode_config = bincode::config::standard();
+        let db = bincode::serde::decode_from_reader(reader, bincode_config)?;
+
+        Ok(db)
+    }
+
+    pub fn load_or_create<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        match Self::load(&path) {
+            Ok(db) => Ok(db),
+            Err(_) => {
+                log::info!("Database not found, creating new one");
+                Ok(Self::new())
+            }
+        }
+    }
+
+    pub(crate) fn get_song_metadata_by_match_result(
+        &self,
+        result: &MatchResult,
+    ) -> Option<SongMetaData> {
+        self.songs.get(&result.song_id).cloned()
     }
 }
 
@@ -83,7 +148,7 @@ pub(crate) fn generate_fingerprints(
     peaks: &[Peak],
     config: &SpectrogramConfig,
 ) -> Vec<(Fingerprint, u32)> {
-    log::debug!("Generating fingerprint");
+    log::info!("Generating fingerprint");
     let mut fingerprints = Vec::new();
     let mut peak_indices: Vec<usize> = (0..peaks.len()).collect();
     peak_indices.sort_by_key(|&i| peaks[i].time_bin);
@@ -124,7 +189,7 @@ pub(crate) fn generate_fingerprints(
         }
     }
 
-    log::debug!("Done generating fingerprints");
+    log::info!("Done generating fingerprints");
     fingerprints
 }
 
@@ -146,7 +211,7 @@ fn create_fingerprint(anchor: &Peak, target: &Peak, config: &SpectrogramConfig) 
     }
 }
 
-pub struct MatchResult {
+struct MatchResult {
     pub song_id: u32,
     pub confidence: f32,  // 0.0 to 1.0
     pub time_offset: u32, // Where in the original song (ms)

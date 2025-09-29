@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-clap = "4.5.47"
+bincode = { version = "2.0.1", features = ["serde"] }
+clap = { version = "4.5.48", features = ["derive"] }
+clap-verbosity-flag = "3.0.4"
+env_logger = "0.11.8"
 fastrand = "2.3.0"
 hound = "3.5.1"
 log = "0.4.28"
 rustfft = "6.4.0"
+serde = { version = "1.0.228", features = ["derive"] }
 simple_logger = "5.0.0"

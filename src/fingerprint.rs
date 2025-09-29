@@ -21,7 +21,7 @@ pub struct Fingerprint {
     pub time_delta: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SongMetaData {
     pub song_id: u32,
     pub title: String,
@@ -65,7 +65,7 @@ impl FingerprintDB {
         &self,
         peaks: &[Peak],
         config: &SpectrogramConfig,
-    ) -> Option<MatchResult> {
+    ) -> Option<SongMetaData> {
         log::info!("Recognizing song");
 
         let query_fingerprints = generate_fingerprints(peaks, config);
@@ -93,7 +93,8 @@ impl FingerprintDB {
         match result {
             Some(((song_id, offset), votes)) => {
                 let confidence = *votes as f32 / total_query_fingerprints as f32;
-                return Some(MatchResult::new(*song_id, confidence, *offset, *votes));
+                let match_result = MatchResult::new(*song_id, confidence, *offset, *votes);
+                self.get_song_metadata_by_match_result(&match_result)
             }
             None => None,
         }
@@ -133,6 +134,13 @@ impl FingerprintDB {
                 Ok(Self::new())
             }
         }
+    }
+
+    pub(crate) fn get_song_metadata_by_match_result(
+        &self,
+        result: &MatchResult,
+    ) -> Option<SongMetaData> {
+        self.songs.get(&result.song_id).cloned()
     }
 }
 
@@ -203,7 +211,7 @@ fn create_fingerprint(anchor: &Peak, target: &Peak, config: &SpectrogramConfig) 
     }
 }
 
-pub struct MatchResult {
+struct MatchResult {
     pub song_id: u32,
     pub confidence: f32,  // 0.0 to 1.0
     pub time_offset: u32, // Where in the original song (ms)

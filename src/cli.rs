@@ -15,5 +15,6 @@ pub(crate) struct Cli {
 #[derive(Debug, Subcommand)]
 pub(crate) enum Commands {
     Analyze { path_to_song: String },
+    AnalyzeDirectory { path_to_directory: String },
     Recognize { path_to_song_snippet: String },
 }

@@ -1,4 +1,10 @@
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use crate::{fft::SpectrogramConfig, peaks::Peak};
 
@@ -8,35 +14,51 @@ const MAX_TIME_DELTA_MS: u32 = 2000;
 const NUM_TARGET_PEAKS: usize = 5;
 
 // We define a fingerprint as a relationship between two peaks
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Fingerprint {
     pub freq1: u32,
     pub freq2: u32,
     pub time_delta: u32,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SongMetaData {
+    pub song_id: u32,
+    pub title: String,
+}
 // The fingerprint database maps a fingerprint to where it was found (song_id, time_offset)
+#[derive(Serialize, Deserialize)]
 pub struct FingerprintDB {
     pub database: HashMap<Fingerprint, Vec<(u32, u32)>>,
+    pub songs: HashMap<u32, SongMetaData>,
+    pub total_fingerprints: usize,
 }
 
 impl FingerprintDB {
     pub fn new() -> Self {
         Self {
             database: HashMap::new(),
+            songs: HashMap::new(),
+            total_fingerprints: 0,
         }
     }
 
-    pub fn add_song(&mut self, peaks: &[Peak], config: &SpectrogramConfig) {
-        let song_id = self.database.len() as u32;
-        log::info!("Adding song: {song_id}");
+    pub fn add_song(&mut self, metadata: SongMetaData, peaks: &[Peak], config: &SpectrogramConfig) {
+        log::info!(
+            "Adding song: {} with title: {}",
+            metadata.song_id,
+            metadata.title
+        );
         let fingerprints = generate_fingerprints(peaks, &config);
         for (fingerprint, time_offset) in fingerprints {
             self.database
                 .entry(fingerprint)
                 .or_insert_with(Vec::new)
-                .push((song_id, time_offset))
+                .push((metadata.song_id, time_offset))
         }
+
+        self.songs.insert(metadata.song_id, metadata);
+        self.total_fingerprints += self.database.len();
     }
 
     pub fn recognize_song(
@@ -66,7 +88,7 @@ impl FingerprintDB {
         }
 
         // Fetch the key corresponding to the highest number of votes
-        let result = vote_counter.iter().max_by_key(|(key, value)| **value);
+        let result = vote_counter.iter().max_by_key(|(_key, value)| **value);
 
         match result {
             Some(((song_id, offset), votes)) => {
@@ -74,6 +96,42 @@ impl FingerprintDB {
                 return Some(MatchResult::new(*song_id, confidence, *offset, *votes));
             }
             None => None,
+        }
+    }
+
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!(
+            "Saving fingerprint database with {} songs and {} fingerprints",
+            self.songs.len(),
+            self.total_fingerprints
+        );
+
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+        let bincode_config = bincode::config::standard();
+        bincode::serde::encode_into_std_write(self, &mut writer, bincode_config)?;
+
+        Ok(())
+    }
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        log::info!("Loading fingerprint database");
+
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+
+        let bincode_config = bincode::config::standard();
+        let db = bincode::serde::decode_from_reader(reader, bincode_config)?;
+
+        Ok(db)
+    }
+
+    pub fn load_or_create<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        match Self::load(&path) {
+            Ok(db) => Ok(db),
+            Err(_) => {
+                log::info!("Database not found, creating new one");
+                Ok(Self::new())
+            }
         }
     }
 }

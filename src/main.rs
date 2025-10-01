@@ -1,6 +1,6 @@
 mod cli;
 
-use std::{fs, io};
+use std::{fs, io, path::PathBuf};
 
 use audio_fingerprint::{analyze_song, recognize_song};
 use clap::Parser;
@@ -16,18 +16,16 @@ fn main() {
         .init();
 
     match cli.command {
-        cli::Commands::Analyze { path_to_song } => {
+        cli::Commands::Analyze(args) => {
             log::info!(
                 "Analyzing {} and committing fingerprint to database",
-                path_to_song
+                args.path_to_song
             );
-            analyze_song(&path_to_song)
+            analyze_song(&args.path_to_song)
         }
-        cli::Commands::Recognize {
-            path_to_song_snippet,
-        } => {
-            log::info!("Attempting to recognize {}", path_to_song_snippet);
-            match recognize_song(&path_to_song_snippet) {
+        cli::Commands::Recognize(args) => {
+            log::info!("Attempting to recognize {}", args.path_to_song);
+            match recognize_song(&args.path_to_song) {
                 Some((song_metadata, match_result)) => {
                     println!("Match found:");
                     println!("Song ID: {}", song_metadata.song_id);
@@ -37,10 +35,10 @@ fn main() {
                 None => todo!(),
             }
         }
-        cli::Commands::AnalyzeDirectory { path_to_directory } => {
-            log::info!("Analyzing all .wav files in {}", path_to_directory);
+        cli::Commands::AnalyzeDirectory(args) => {
+            log::info!("Analyzing all .wav files in {:?}", args.path_to_directory);
 
-            let file_paths = get_file_paths_from_directory(&path_to_directory);
+            let file_paths = get_file_paths_from_directory(&args.path_to_directory);
             match file_paths {
                 Ok(file_paths) => {
                     for fp in file_paths.iter() {
@@ -53,7 +51,7 @@ fn main() {
     }
 }
 
-fn get_file_paths_from_directory(path_to_directory: &str) -> Result<Vec<String>, io::Error> {
+fn get_file_paths_from_directory(path_to_directory: &PathBuf) -> Result<Vec<String>, io::Error> {
     // Recursively find all .wav files in directory
     let mut file_paths = Vec::<String>::new();
 

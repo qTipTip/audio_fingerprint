@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::InfoLevel;
 
@@ -12,9 +14,27 @@ pub(crate) struct Cli {
     pub verbosity: clap_verbosity_flag::Verbosity<InfoLevel>,
 }
 
+#[derive(clap::Args, Debug)]
+pub(crate) struct AnalyzeArgs {
+    #[arg(long, short = 'p')]
+    pub path_to_song: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub(crate) struct AnalyzeDirectoryArgs {
+    #[arg(long, short = 'p')]
+    pub path_to_directory: PathBuf,
+}
+
+#[derive(clap::Args, Debug)]
+pub(crate) struct RecognizeArgs {
+    #[arg(long, short = 'p')]
+    pub path_to_song: String,
+}
+
 #[derive(Debug, Subcommand)]
 pub(crate) enum Commands {
-    Analyze { path_to_song: String },
-    AnalyzeDirectory { path_to_directory: String },
-    Recognize { path_to_song_snippet: String },
+    Analyze(AnalyzeArgs),
+    AnalyzeDirectory(AnalyzeDirectoryArgs),
+    Recognize(RecognizeArgs),
 }

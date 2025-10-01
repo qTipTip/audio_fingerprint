@@ -11,7 +11,7 @@ file database `audio_fingerprint.db`. Subsequent queries will be done against
 this database.
 
 ```shell
-> cargo run --release analyze-directory test_audio
+> cargo run --release analyze-directory -p test_audio/
 [2025-10-01T10:26:20Z INFO  audio_fingerprint] Analyzing all .wav files in test_audio/
 [2025-10-01T10:26:20Z INFO  audio_fingerprint::fingerprint] Loading fingerprint database
 [2025-10-01T10:26:20Z INFO  audio_fingerprint::fingerprint] Database not found, creating new one
@@ -47,7 +47,7 @@ The above command will extract the section from 38s to 48s in the song.
 I can then attempt to recognize this song in the database:
 
 ```shell
-❯ cargo run --release recognize test_queries/07_song_query.wav
+❯ cargo run --release recognize -p test_queries/07_song_query.wav
 [2025-10-01T10:34:27Z INFO  audio_fingerprint] Attempting to recognize test_queries/07_song_query.wav
 [2025-10-01T10:34:27Z INFO  audio_fingerprint::fingerprint] Loading fingerprint database
 [2025-10-01T10:34:27Z INFO  audio_fingerprint::fingerprint] Recognizing song

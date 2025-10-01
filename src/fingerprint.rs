@@ -92,7 +92,7 @@ impl FingerprintDB {
         &self,
         peaks: &[Peak],
         config: &SpectrogramConfig,
-    ) -> Option<SongMetaData> {
+    ) -> Option<(SongMetaData, MatchResult)> {
         log::info!("Recognizing song");
 
         let query_fingerprints = generate_fingerprints(peaks, config);
@@ -121,7 +121,11 @@ impl FingerprintDB {
             Some(((song_id, offset), votes)) => {
                 let confidence = *votes as f32 / total_query_fingerprints as f32;
                 let match_result = MatchResult::new(*song_id, confidence, *offset, *votes);
-                self.get_song_metadata_by_match_result(&match_result)
+                if let Some(metadata) = self.get_song_metadata_by_match_result(&match_result) {
+                    Some((metadata, match_result))
+                } else {
+                    return None;
+                }
             }
             None => None,
         }

@@ -1,4 +1,4 @@
-use crate::fingerprint::SongMetaData;
+use crate::fingerprint::{MatchResult, SongMetaData};
 
 mod audio;
 mod error;
@@ -37,7 +37,7 @@ pub fn analyze_song(song_path: &str) {
         .expect("Unable to write to database");
 }
 
-pub fn recognize_song(song_query_path: &str) -> Option<SongMetaData> {
+pub fn recognize_song(song_query_path: &str) -> Option<(SongMetaData, MatchResult)> {
     let samples = audio::load_wav(song_query_path).expect("Unable to read wav file");
     let config = fft::SpectrogramConfig::default();
     let spectrogram = fft::compute_spectrogram(&samples, config);

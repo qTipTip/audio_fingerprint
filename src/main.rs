@@ -28,12 +28,11 @@ fn main() {
         } => {
             log::info!("Attempting to recognize {}", path_to_song_snippet);
             match recognize_song(&path_to_song_snippet) {
-                Some(song) => {
-                    log::info!(
-                        "Found a match! song_id: {} title: {}",
-                        song.song_id,
-                        song.title
-                    );
+                Some((song_metadata, match_result)) => {
+                    println!("Match found:");
+                    println!("Song ID: {}", song_metadata.song_id);
+                    println!("Title: {}", song_metadata.title);
+                    println!("Confidence: {}", match_result.confidence);
                 }
                 None => todo!(),
             }

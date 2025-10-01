@@ -39,6 +39,7 @@ impl Fingerprint {
         Self(encoded)
     }
 
+    #[allow(dead_code)]
     pub fn decode(&self) -> (u32, u32, u32) {
         let freq1 = ((self.0 >> Self::FREQ1_SHIFT) & Self::FREQ_MASK) * 20;
         let freq2 = ((self.0 >> Self::FREQ2_SHIFT) & Self::FREQ_MASK) * 20;

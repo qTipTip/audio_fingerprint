@@ -1,4 +1,4 @@
-use crate::fingerprint::SongMetaData;
+use crate::fingerprint::{MatchResult, SongMetaData};
 
 mod audio;
 mod error;
@@ -21,7 +21,7 @@ pub fn analyze_song(song_path: &str) {
         title: String::from(song_path),
     };
 
-    db.add_song(song_metadata, &peaks, &config);
+    db.add_song(song_metadata, &peaks, &spectrogram.config);
 
     let total_fingerprints: usize = db.database.values().map(|v| v.len()).sum();
     let unique_fingerprints: usize = db.database.len();
@@ -37,7 +37,7 @@ pub fn analyze_song(song_path: &str) {
         .expect("Unable to write to database");
 }
 
-pub fn recognize_song(song_query_path: &str) -> Option<SongMetaData> {
+pub fn recognize_song(song_query_path: &str) -> Option<(SongMetaData, MatchResult)> {
     let samples = audio::load_wav(song_query_path).expect("Unable to read wav file");
     let config = fft::SpectrogramConfig::default();
     let spectrogram = fft::compute_spectrogram(&samples, config);
@@ -46,5 +46,5 @@ pub fn recognize_song(song_query_path: &str) -> Option<SongMetaData> {
     let db =
         fingerprint::FingerprintDB::load("audio_fingerprint.db").expect("Unable to load database");
 
-    db.recognize_song(&peaks, &config)
+    db.recognize_song(&peaks, &spectrogram.config)
 }

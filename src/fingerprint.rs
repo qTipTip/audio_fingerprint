@@ -14,11 +14,38 @@ const MAX_TIME_DELTA_MS: u32 = 2000;
 const NUM_TARGET_PEAKS: usize = 5;
 
 // We define a fingerprint as a relationship between two peaks
-#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct Fingerprint {
-    pub freq1: u32,
-    pub freq2: u32,
-    pub time_delta: u32,
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
+pub struct Fingerprint(u32);
+
+impl Fingerprint {
+    // Bit layout: [10 bits freq1][10 bits freq2][12 bits time_delta]
+
+    const FREQ1_SHIFT: u32 = 22;
+    const FREQ2_SHIFT: u32 = 12;
+    const TIME_MASK: u32 = 0xFFF;
+    const FREQ_MASK: u32 = 0x3FF;
+
+    pub fn new(freq1_hz: u32, freq2_hz: u32, time_delta_ms: u32) -> Self {
+        // 10 bits can represent 1024 values We encode frequencies with 20Hz resolution, meaning we
+        //    can at most represent 20.48kHz with 1024 bins.
+        let f1 = ((freq1_hz / 20).min(1023)) & Self::FREQ_MASK;
+        let f2 = ((freq2_hz / 20).min(1023)) & Self::FREQ_MASK;
+
+        // We encode time delta with 5 ms resolution (12 bits = 4096 bins = 20.48 seconds max)
+        let td = ((time_delta_ms / 5).min(4095)) & Self::TIME_MASK;
+
+        let encoded = (f1 << Self::FREQ1_SHIFT) | (f2 << Self::FREQ2_SHIFT) | td;
+
+        Self(encoded)
+    }
+
+    pub fn decode(&self) -> (u32, u32, u32) {
+        let freq1 = ((self.0 >> Self::FREQ1_SHIFT) & Self::FREQ_MASK) * 20;
+        let freq2 = ((self.0 >> Self::FREQ2_SHIFT) & Self::FREQ_MASK) * 20;
+
+        let time_delta = (self.0 & Self::TIME_MASK) * 5;
+        (freq1, freq2, time_delta)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -65,7 +92,7 @@ impl FingerprintDB {
         &self,
         peaks: &[Peak],
         config: &SpectrogramConfig,
-    ) -> Option<SongMetaData> {
+    ) -> Option<(SongMetaData, MatchResult)> {
         log::info!("Recognizing song");
 
         let query_fingerprints = generate_fingerprints(peaks, config);
@@ -94,7 +121,11 @@ impl FingerprintDB {
             Some(((song_id, offset), votes)) => {
                 let confidence = *votes as f32 / total_query_fingerprints as f32;
                 let match_result = MatchResult::new(*song_id, confidence, *offset, *votes);
-                self.get_song_metadata_by_match_result(&match_result)
+                if let Some(metadata) = self.get_song_metadata_by_match_result(&match_result) {
+                    Some((metadata, match_result))
+                } else {
+                    return None;
+                }
             }
             None => None,
         }
@@ -204,14 +235,12 @@ fn create_fingerprint(anchor: &Peak, target: &Peak, config: &SpectrogramConfig) 
         (freq2, freq1)
     };
 
-    Fingerprint {
-        freq1: f1,
-        freq2: f2,
-        time_delta: ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32,
-    }
+    let td_ms = ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32;
+    Fingerprint::new(f1, f2, td_ms)
 }
 
-struct MatchResult {
+#[allow(dead_code)]
+pub struct MatchResult {
     pub song_id: u32,
     pub confidence: f32,  // 0.0 to 1.0
     pub time_offset: u32, // Where in the original song (ms)

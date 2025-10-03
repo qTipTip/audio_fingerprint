@@ -1,3 +1,3 @@
-- [] Encode a fingerprint as a 32 bit integer.
-- [] Avoid duplicates in database, by disallowing analyzing the same song twice. (Check for hashes?)
-- [] Add batch analyze, to analyze multiple files.
+- [x] Encode a fingerprint as a 32 bit integer.
+- [x] Add batch analyze, to analyze multiple files.
+- [ ] Avoid duplicates in database, by disallowing analyzing the same song twice. (Check for hashes?)

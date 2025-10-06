@@ -234,15 +234,8 @@ fn create_fingerprint(anchor: &Peak, target: &Peak, config: &SpectrogramConfig) 
     let freq1 = anchor.frequency_hz(config) as u32;
     let freq2 = target.frequency_hz(config) as u32;
 
-    // Make sure the fingerprints always has the lowest frequency first.
-    let (f1, f2) = if freq1 <= freq2 {
-        (freq1, freq2)
-    } else {
-        (freq2, freq1)
-    };
-
     let td_ms = ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32;
-    Fingerprint::new(f1, f2, td_ms)
+    Fingerprint::new(freq1, freq2, td_ms)
 }
 
 #[allow(dead_code)]

@@ -1,4 +1,4 @@
-use crate::fingerprint::{MatchResult, SongMetaData};
+use crate::fingerprint::{FingerprintDB, MatchResult, SongMetaData};
 
 mod audio;
 mod error;
@@ -6,11 +6,22 @@ mod fft;
 mod fingerprint;
 mod peaks;
 
-pub fn analyze_song(song_path: &str) {
-    let mut db = fingerprint::FingerprintDB::load_or_create("audio_fingerprint.db")
-        .expect("Unable to create database");
+pub fn get_database() -> Option<FingerprintDB> {
+    match FingerprintDB::load_or_create("audio_fingerprint.db") {
+        Ok(db) => {
+            Some(db)
+        },
+        Err(_) =>None 
+    }
+}
 
+pub fn save_database(db: &FingerprintDB) {
+    db.save("audio_fingerprint.db")
+        .expect("Unable to write to database");
+}
+pub fn analyze_song(db: &mut FingerprintDB, song_path: &str) {
     log::debug!("Adding {} to song database", song_path);
+
     let samples = audio::load_wav(song_path).expect("Unable to read wav file");
     let config = fft::SpectrogramConfig::default();
     let spectrogram = fft::compute_spectrogram(&samples, config);
@@ -33,18 +44,13 @@ pub fn analyze_song(song_path: &str) {
         total_fingerprints as f32 / unique_fingerprints as f32
     );
 
-    db.save("audio_fingerprint.db")
-        .expect("Unable to write to database");
 }
 
-pub fn recognize_song(song_query_path: &str) -> Option<(SongMetaData, MatchResult)> {
+pub fn recognize_song(db: &FingerprintDB, song_query_path: &str) -> Option<(SongMetaData, MatchResult)> {
     let samples = audio::load_wav(song_query_path).expect("Unable to read wav file");
     let config = fft::SpectrogramConfig::default();
     let spectrogram = fft::compute_spectrogram(&samples, config);
     let peaks = peaks::extract_peaks(&spectrogram);
-
-    let db =
-        fingerprint::FingerprintDB::load("audio_fingerprint.db").expect("Unable to load database");
 
     db.recognize_song(&peaks, &spectrogram.config)
 }

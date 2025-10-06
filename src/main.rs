@@ -2,7 +2,7 @@ mod cli;
 
 use std::{fs, io, path::PathBuf};
 
-use audio_fingerprint::{analyze_song, recognize_song};
+use audio_fingerprint::{analyze_song, get_database, recognize_song, save_database};
 use clap::Parser;
 
 use crate::cli::Cli;
@@ -17,35 +17,43 @@ fn main() {
 
     match cli.command {
         cli::Commands::Analyze(args) => {
-            log::info!(
-                "Analyzing {} and committing fingerprint to database",
-                args.path_to_song
-            );
-            analyze_song(&args.path_to_song)
+            if let Some(mut db) = get_database() {
+                log::info!(
+                    "Analyzing {} and committing fingerprint to database",
+                    args.path_to_song
+                );
+                analyze_song(&mut db, &args.path_to_song);
+                save_database(&db);
+            }
         }
         cli::Commands::Recognize(args) => {
             log::info!("Attempting to recognize {}", args.path_to_song);
-            match recognize_song(&args.path_to_song) {
-                Some((song_metadata, match_result)) => {
-                    println!("Match found:");
-                    println!("Song ID: {}", song_metadata.song_id);
-                    println!("Title: {}", song_metadata.title);
-                    println!("Confidence: {}", match_result.confidence);
+            if let Some(db) = get_database() {
+                match recognize_song(&db, &args.path_to_song) {
+                    Some((song_metadata, match_result)) => {
+                        println!("Match found:");
+                        println!("Song ID: {}", song_metadata.song_id);
+                        println!("Title: {}", song_metadata.title);
+                        println!("Confidence: {}", match_result.confidence);
+                    }
+                    None => todo!(),
                 }
-                None => todo!(),
             }
         }
         cli::Commands::AnalyzeDirectory(args) => {
             log::info!("Analyzing all .wav files in {:?}", args.path_to_directory);
 
-            let file_paths = get_file_paths_from_directory(&args.path_to_directory);
-            match file_paths {
-                Ok(file_paths) => {
-                    for fp in file_paths.iter() {
-                        analyze_song(fp);
+            if let Some(mut db) = get_database() {
+                let file_paths = get_file_paths_from_directory(&args.path_to_directory);
+                match file_paths {
+                    Ok(file_paths) => {
+                        for fp in file_paths.iter() {
+                            analyze_song(&mut db, fp);
+                        }
                     }
+                    Err(_) => todo!(),
                 }
-                Err(_) => todo!(),
+                save_database(&db);
             }
         }
     }

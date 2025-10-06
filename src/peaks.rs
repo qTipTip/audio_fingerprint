@@ -1,5 +1,6 @@
 use crate::fft::{Spectrogram, SpectrogramConfig};
 
+const MAGNITUDE_THRESHOLD: f32 = 10.0;
 // A peak represents a prominent point in the 2D time-frequency grid we compute using
 // compute_spectrogram.
 // A Peak is made up of a reference to which point in time, and which part of the frequency
@@ -38,32 +39,43 @@ pub fn extract_peaks(spectrogram: &Spectrogram) -> Vec<Peak> {
     log::debug!("Extracting peaks");
     let mut all_peaks = Vec::<Peak>::new();
 
+    // We look for peaks in a 16x16 window in the time-frequency grid.
+    let time_window = 3;
+    let freq_window = 3;
     // We iterate over each time-slice in the time-frequency grid, and compute peaks in each
     // window.
-    for (time_bin, freq_magnitudes) in spectrogram.data.iter().enumerate() {
-        let peaks_in_this_window = find_frequency_peaks(&freq_magnitudes, time_bin);
-        all_peaks.extend(peaks_in_this_window);
+
+    for t in time_window..spectrogram.data.len() - time_window {
+        for f in freq_window..spectrogram.data[t].len() - freq_window {
+            let center = spectrogram.data[t][f];
+            let mut is_peak = true;
+
+            'peak_loop: for dt in -(time_window as i8)..time_window as i8 {
+                for df in -(freq_window as i8)..freq_window as i8 {
+                    // We skip checking the center itself.
+                    if dt == 0 && df == 0 {
+                        continue;
+                    }
+
+                    let t_idx = (t as i32 + dt as i32) as usize;
+                    let f_idx = (f as i32 + df as i32) as usize;
+
+                    // If the neighboring data point is larger, then the center is not a peak, so
+                    // we break the inner loop.
+                    if spectrogram.data[t_idx][f_idx] >= center {
+                        is_peak = false;
+                        break 'peak_loop;
+                    }
+                }
+            }
+            if is_peak && center > MAGNITUDE_THRESHOLD {
+                all_peaks.push(Peak::new(t, f, center));
+            }
+        }
     }
 
     log::debug!("Extracted {} peaks", all_peaks.len());
     all_peaks
-}
-
-fn find_frequency_peaks(magnitudes: &[f32], time_bin: usize) -> Vec<Peak> {
-    let mut peaks = Vec::<Peak>::new();
-    let num_magnitudes = magnitudes.len();
-
-    for i in 1..num_magnitudes - 1 {
-        if (magnitudes[i] > magnitudes[i - 1]) && (magnitudes[i] > magnitudes[i + 1]) {
-            peaks.push(Peak::new(time_bin, i, magnitudes[i]));
-        }
-    }
-
-    // Sort by strongest peaks first, and pick the 5 largest.
-    peaks.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap());
-    peaks.truncate(5);
-
-    peaks
 }
 
 #[cfg(test)]

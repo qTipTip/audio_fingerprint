@@ -14,3 +14,7 @@ log = "0.4.28"
 rustfft = "6.4.0"
 serde = { version = "1.0.228", features = ["derive"] }
 simple_logger = "5.0.0"
+
+[profile.profiling]
+inherits = "release"
+debug = true

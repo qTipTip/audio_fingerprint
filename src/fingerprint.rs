@@ -1,4 +1,3 @@
-use core::time;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -9,9 +8,11 @@ use std::{
 
 use crate::{fft::SpectrogramConfig, peaks::Peak};
 
-// Max 2 seconds diff between target and anchor when creating
-// fingerprints
-const MAX_TIME_DELTA_MS: u32 = 2000;
+// Define the grid in which we look for fingerprint candidates. We only consider targets that are
+// between 0 and 2 seconds ahead in time, and +- 50Hz away in frequency.
+const TARGET_ZONE_TIME_START_MS: u32 = 0;
+const TARGET_ZONE_TIME_END_MS: u32 = 2000;
+const TARGET_ZONE_FREQ_RANGE: usize = 50;
 const NUM_TARGET_PEAKS: usize = 5;
 
 // We define a fingerprint as a relationship between two peaks
@@ -177,12 +178,6 @@ impl FingerprintDB {
     }
 }
 
-// Define the grid in which we look for fingerprint candidates. We only consider targets that are
-// between 0 and 2 seconds ahead in time, and +- 50Hz away in frequency.
-const TARGET_ZONE_TIME_START_MS: u32 = 0;
-const TARGET_ZONE_TIME_END_MS: u32 = 2000;
-const TARGET_ZONE_FREQ_RANGE: usize = 50;
-
 pub(crate) fn generate_fingerprints(
     peaks: &[Peak],
     config: &SpectrogramConfig,
@@ -191,7 +186,7 @@ pub(crate) fn generate_fingerprints(
     let mut fingerprints = Vec::new();
     let mut peak_indices: Vec<usize> = (0..peaks.len()).collect();
     peak_indices.sort_by_key(|&i| peaks[i].time_bin);
-    
+
     // We start by identifying potential targets for fingerprints. We only take the
     // NUM_TARGET_PEAKS closest in time to each anchor.
     for (i, &anchor_i) in peak_indices.iter().enumerate() {
@@ -224,7 +219,7 @@ pub(crate) fn generate_fingerprints(
 
             valid_targets.push((target_i, time_diff_ms, target.magnitude));
         }
-        
+
         // Sort the valid targets by the time diff from the anchor, prioritizing targets closest in
         // time first. We take the NUM_TARGET_PEAKS first of them.
         valid_targets.sort_by_key(|(_, time_diff, _)| *time_diff);

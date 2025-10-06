@@ -1,3 +1,4 @@
+use core::time;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -175,13 +176,12 @@ impl FingerprintDB {
         self.songs.get(&result.song_id).cloned()
     }
 }
-    
+
 // Define the grid in which we look for fingerprint candidates. We only consider targets that are
 // between 0 and 2 seconds ahead in time, and +- 50Hz away in frequency.
 const TARGET_ZONE_TIME_START_MS: u32 = 0;
 const TARGET_ZONE_TIME_END_MS: u32 = 2000;
 const TARGET_ZONE_FREQ_RANGE: usize = 50;
-
 
 pub(crate) fn generate_fingerprints(
     peaks: &[Peak],
@@ -191,20 +191,23 @@ pub(crate) fn generate_fingerprints(
     let mut fingerprints = Vec::new();
     let mut peak_indices: Vec<usize> = (0..peaks.len()).collect();
     peak_indices.sort_by_key(|&i| peaks[i].time_bin);
-
+    
+    // We start by identifying potential targets for fingerprints. We only take the
+    // NUM_TARGET_PEAKS closest in time to each anchor.
     for (i, &anchor_i) in peak_indices.iter().enumerate() {
         let anchor = &peaks[anchor_i];
-
+        let mut valid_targets = Vec::new();
         for &target_i in &peak_indices[i + 1..] {
             let target = &peaks[target_i];
-            let time_diff_ms = ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32;
-            
+            let time_diff_ms =
+                ((target.time_seconds(config) - anchor.time_seconds(config)) * 1000.0) as u32;
+
             // Check if target is before the anchor in time, if so we skip it and continue to the
             // next candidate.
             if time_diff_ms < TARGET_ZONE_TIME_START_MS {
                 continue;
             }
-            
+
             // Check if target is after the anchor + 2 seconds in time, if so we break the
             // target-loop. Note, this is because the peaks are sorted by time, so if this time is
             // outside the window, by more than 2 seconds, then all subsequent targets will also
@@ -212,16 +215,23 @@ pub(crate) fn generate_fingerprints(
             if time_diff_ms > TARGET_ZONE_TIME_END_MS {
                 break;
             }
-    
+
             // If the target is outside a +-50Hz window, then we skip it.
             let freq_diff = (target.freq_bin as i32 - anchor.freq_bin as i32).abs() as usize;
             if freq_diff > TARGET_ZONE_FREQ_RANGE {
                 continue;
             }
-            
+
+            valid_targets.push((target_i, time_diff_ms, target.magnitude));
+        }
+        
+        // Sort the valid targets by the time diff from the anchor, prioritizing targets closest in
+        // time first. We take the NUM_TARGET_PEAKS first of them.
+        valid_targets.sort_by_key(|(_, time_diff, _)| *time_diff);
+        for (target_i, _, _) in valid_targets.iter().take(NUM_TARGET_PEAKS) {
+            let target = &peaks[*target_i];
             let fingerprint = create_fingerprint(anchor, target, config);
             let time_offset_ms = (anchor.time_seconds(config) * 1000.0) as u32;
-            
             fingerprints.push((fingerprint, time_offset_ms));
         }
     }
